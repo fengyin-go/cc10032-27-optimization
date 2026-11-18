@@ -86,6 +86,30 @@
       </form>
     </div>
 
+    <div v-if="meta.key === 'throughput_mgr'" class="ops-panel" data-testid="active-throttle-panel">
+      <h3>切换期间活动限流配置核查</h3>
+      <p class="ops-note">
+        拓扑切换继承限流状态期间，同一数据源只应保留一个活动限流配置；出现两个活动配置即为异常。
+      </p>
+      <table class="data-table" data-testid="active-throttle-table">
+        <thead>
+          <tr><th>数据源</th><th>活动限流配置数</th><th>结论</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="(count, source) in activeThrottles?.by_source ?? {}" :key="source">
+            <td>{{ source }}</td>
+            <td>{{ count }}</td>
+            <td :class="{ 'error-text': count > 1 }">
+              {{ count > 1 ? '异常：存在两个活动配置' : '正常：单一活动配置' }}
+            </td>
+          </tr>
+          <tr v-if="!(activeThrottles?.total_active ?? 0)">
+            <td colspan="3" class="empty-state">当前没有活动限流配置，未处于切换窗口</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
     <footer class="page-foot">
       <span>共 {{ total }} 条{{ meta.name }}记录</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
@@ -103,6 +127,8 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/backend-service'
+import { listActiveThrottles } from '@/api/ops-service'
+import type { ActiveThrottleInfo } from '@/api/ops-service'
 import type { EntryRow } from '@/data/types'
 
 const props = defineProps<{ moduleKey: string }>()
@@ -115,6 +141,7 @@ const filterFields = meta.fields.slice(0, 3)
 const showCreate = ref(false)
 const creating = ref(false)
 const createValues = ref<Record<string, string>>({})
+const activeThrottles = ref<ActiveThrottleInfo | null>(null)
 const stats = computed(() => [
   { label: meta.metrics[0], value: total.value },
   { label: meta.metrics[1], value: rows.value.filter((row) => row.status === meta.statuses[1]).length },
@@ -182,6 +209,9 @@ async function reload() {
     const payload = await listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    if (meta.key === 'throughput_mgr') {
+      activeThrottles.value = await listActiveThrottles()
+    }
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '业务列表读取失败'
   }
@@ -189,3 +219,22 @@ async function reload() {
 
 onMounted(reload)
 </script>
+
+<style scoped>
+.ops-panel {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-top: 14px;
+}
+.ops-panel h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.ops-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+</style>

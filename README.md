@@ -79,5 +79,16 @@ npm run dev
 - 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
 
+## 拓扑切换与批量编排（序号27）
+
+- `backend/app/failover.py`：作业切换备用拓扑时继承当前有效限流状态（不再回退
+  默认最大QPS），单写交接、切换期间单一活动状态键，切换完成后故障转移清单才
+  标记可用；并发切换按幂等键只产生一组结果。
+- `backend/app/batch.py`：批量处理多条作业编排数据，一次提交保留整组结果、
+  逐条成功失败，事务异常回滚整组，另一入口可生成整组处理台账且只记一次。
+- 接口挂在 `/api/ops/*`；页面：`/ops/failover`（作业切换）、`/ops/batch`
+  （批量编排），吞吐页 `/throughput_mgr` 内置活动限流配置核查面板。
+- 设计取舍与事务边界见 `docs/item27-topology-failover.md`。
+
 领域：数据工程
 子方向：数据分析与数据应用
